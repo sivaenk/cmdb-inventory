@@ -1,0 +1,6 @@
+# Core dependencies
+boto3>=1.34.0
+botocore>=1.34.0
+
+# Shared library (install from sibling directory)
+# pip install -e ../aws-resource-collectors

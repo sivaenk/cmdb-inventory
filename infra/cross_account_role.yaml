@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  CMDBInventoryRole — Read-only cross-account IAM role deployed to member accounts
+  via CloudFormation StackSets. The management account assumes this role to
+  perform resource discovery across the organization.
+
+Parameters:
+  ManagementAccountId:
+    Type: String
+    Description: AWS account ID of the management account running the CMDB collector
+    AllowedPattern: "^[0-9]{12}$"
+    ConstraintDescription: Must be a 12-digit AWS account ID
+
+  RoleName:
+    Type: String
+    Default: CMDBInventoryRole
+    Description: Name of the cross-account IAM role
+
+Resources:
+  CMDBInventoryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${ManagementAccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:PrincipalTag/Project: "CMDB"
+      Tags:
+        - Key: Project
+          Value: CMDB
+        - Key: ManagedBy
+          Value: CloudFormation-StackSets
+
+  CMDBInventoryPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${RoleName}-Policy"
+      Roles:
+        - !Ref CMDBInventoryRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: STSGetCallerIdentity
+            Effect: Allow
+            Action: sts:GetCallerIdentity
+            Resource: "*"
+
+          - Sid: EC2ReadOnly
+            Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+              - ec2:DescribeVolumes
+              - ec2:DescribeVpcs
+              - ec2:DescribeAddresses
+              - ec2:DescribeTransitGateways
+              - ec2:DescribeTransitGatewayAttachments
+              - ec2:DescribeRouteTables
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeImages
+            Resource: "*"
+
+          - Sid: RDSReadOnly
+            Effect: Allow
+            Action:
+              - rds:DescribeDBInstances
+            Resource: "*"
+
+          - Sid: ELBReadOnly
+            Effect: Allow
+            Action:
+              - elasticloadbalancing:DescribeLoadBalancers
+              - elasticloadbalancing:DescribeTargetGroups
+              - elasticloadbalancing:DescribeTargetHealth
+              - elasticloadbalancing:DescribeInstanceHealth
+              - elasticloadbalancing:DescribeTags
+            Resource: "*"
+
+          - Sid: EFSReadOnly
+            Effect: Allow
+            Action:
+              - elasticfilesystem:DescribeFileSystems
+            Resource: "*"
+
+          - Sid: S3ReadOnly
+            Effect: Allow
+            Action:
+              - s3:ListAllMyBuckets
+              - s3:GetBucketLocation
+              - s3:GetBucketVersioning
+              - s3:GetBucketPublicAccessBlock
+            Resource: "*"
+
+Outputs:
+  RoleArn:
+    Description: ARN of the CMDBInventoryRole
+    Value: !GetAtt CMDBInventoryRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RoleArn"

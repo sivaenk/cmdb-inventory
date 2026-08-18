@@ -1,0 +1,33 @@
+# Copy this file to terraform.tfvars and customize values
+# terraform.tfvars is gitignored and contains your specific configuration
+
+aws_region          = "us-east-1"
+dynamodb_table_name = "CMDBInventory"
+
+# REQUIRED: Must be globally unique - include your account ID
+s3_bucket_name = "cmdb-inventory-YOUR_ACCOUNT_ID"
+
+lambda_function_name    = "cmdb-orchestrator"
+cross_account_role_name = "CMDBInventoryRole"
+
+# Optional: Generate with `openssl rand -hex 16`
+external_id = ""
+
+# Regions to scan for resources
+scan_regions = [
+  "us-east-1",
+  "us-west-2"
+]
+
+# Enable relationship enrichment (EC2→EBS, EC2→RDS, EC2→LB)
+run_enrichment = false
+
+# Scheduled daily scan at 6 AM UTC
+enable_schedule     = true
+schedule_expression = "cron(0 6 * * ? *)"
+
+tags = {
+  Project     = "CMDB"
+  ManagedBy   = "Terraform"
+  Environment = "production"
+}
