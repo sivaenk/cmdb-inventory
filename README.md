@@ -1,4 +1,4 @@
-# Dyson Cloud Ops - AWS CMDB Inventory
+# Cloud Ops - AWS CMDB Inventory
 
 Multi-account AWS resource inventory collector with DynamoDB and S3 storage.
 
