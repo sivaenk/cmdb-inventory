@@ -173,6 +173,14 @@ def _write_scan_metadata(
         logger.error("Failed to write scan metadata", extra={"account_id": account_id, "region": region, "error": str(exc)})
 
 
+def _filter_accounts(accounts: list[dict], target_account_ids: list[str] | None) -> list[dict]:
+    """Filter accounts to only those in target list. If target list is empty/None, return all."""
+    if not target_account_ids:
+        return accounts
+    target_set = set(target_account_ids)
+    return [acct for acct in accounts if acct["Id"] in target_set]
+
+
 def run(
     regions: list[str],
     role_name: str,
@@ -181,6 +189,7 @@ def run(
     dynamodb_region: str,
     external_id: str | None = None,
     run_enrichment: bool = False,
+    target_account_ids: list[str] | None = None,
 ) -> None:
     """Main orchestration loop."""
     # Initialize stores
@@ -194,10 +203,21 @@ def run(
     # List all active member accounts
     org_client = boto3.client("organizations")
     try:
-        accounts = _list_active_accounts(org_client)
+        all_accounts = _list_active_accounts(org_client)
     except ClientError as exc:
         logger.error("Failed to list Organization accounts", extra={"error": str(exc)})
         raise
+
+    # Filter to target accounts if specified
+    accounts = _filter_accounts(all_accounts, target_account_ids)
+    
+    if target_account_ids:
+        logger.info(
+            "Account filtering enabled",
+            extra={"total_org_accounts": len(all_accounts), "target_accounts": len(accounts), "target_ids": target_account_ids},
+        )
+    else:
+        logger.info("Scanning all accounts", extra={"account_count": len(accounts)})
 
     logger.info("Starting inventory scan", extra={"account_count": len(accounts), "regions": regions})
 
@@ -290,11 +310,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--dynamodb-region", default=os.environ.get("CMDB_DYNAMODB_REGION", "us-east-1"))
     parser.add_argument("--external-id", default=os.environ.get("CMDB_EXTERNAL_ID", ""))
     parser.add_argument("--run-enrichment", action="store_true", default=False)
+    parser.add_argument("--target-accounts", nargs="*", default=os.environ.get("TARGET_ACCOUNT_IDS", "").split(",") if os.environ.get("TARGET_ACCOUNT_IDS") else [])
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
+    # Filter empty strings from target accounts
+    target_accounts = [a.strip() for a in args.target_accounts if a.strip()]
     run(
         regions=args.regions,
         role_name=args.role_name,
@@ -303,6 +326,7 @@ if __name__ == "__main__":
         dynamodb_region=args.dynamodb_region,
         external_id=args.external_id or None,
         run_enrichment=args.run_enrichment,
+        target_account_ids=target_accounts or None,
     )
 
 
@@ -316,8 +340,16 @@ def lambda_handler(event: dict, context: Any) -> dict:
     dynamodb_region = os.environ.get("AWS_REGION", "us-east-1")
     external_id = os.environ.get("CMDB_EXTERNAL_ID", "") or None
     run_enrichment_flag = os.environ.get("RUN_ENRICHMENT", "false").lower() == "true"
+    
+    # Parse target accounts — empty string means all accounts
+    target_accounts_raw = os.environ.get("TARGET_ACCOUNT_IDS", "")
+    target_account_ids = [a.strip() for a in target_accounts_raw.split(",") if a.strip()] or None
 
-    logger.info("Lambda invoked", extra={"source": event.get("source", "unknown"), "regions": regions})
+    logger.info("Lambda invoked", extra={
+        "source": event.get("source", "unknown"),
+        "regions": regions,
+        "target_accounts": target_account_ids or "ALL",
+    })
 
     run(
         regions=regions,
@@ -327,6 +359,7 @@ def lambda_handler(event: dict, context: Any) -> dict:
         dynamodb_region=dynamodb_region,
         external_id=external_id,
         run_enrichment=run_enrichment_flag,
+        target_account_ids=target_account_ids,
     )
 
-    return {"status": "ok", "regions": regions}
+    return {"status": "ok", "regions": regions, "target_accounts": target_account_ids or "ALL"}

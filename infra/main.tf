@@ -149,6 +149,7 @@ resource "aws_lambda_function" "orchestrator" {
       S3_BUCKET_NAME          = aws_s3_bucket.cmdb.id
       CMDB_EXTERNAL_ID        = var.external_id
       RUN_ENRICHMENT          = var.run_enrichment ? "true" : "false"
+      TARGET_ACCOUNT_IDS      = join(",", var.target_account_ids)
     }
   }
 

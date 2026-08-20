@@ -40,6 +40,12 @@ variable "scan_regions" {
   default     = ["us-east-1"]
 }
 
+variable "target_account_ids" {
+  description = "List of account IDs to scan. Empty list means scan ALL accounts in the organization."
+  type        = list(string)
+  default     = []
+}
+
 variable "run_enrichment" {
   description = "Whether to run relationship enrichment after collection"
   type        = bool
